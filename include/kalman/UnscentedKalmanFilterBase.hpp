@@ -110,6 +110,7 @@ namespace Kalman {
             
             // Setup state and covariance
             x.setZero();
+            // x.qw() = T(1);
         }
 
         /**
