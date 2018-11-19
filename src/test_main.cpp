@@ -60,11 +60,11 @@ int main(int argc, char** argv) {
 
     T pos_systemNoise = 0.2f;
     T vel_systemNoise = 0.3f;
-    T att_systemNoise = 0.1f;
+    T att_systemNoise = 0.2f;
     T acc_Noise = 0.2f;
     T gyro_Noise = 0.02f;
     T measureNoise = 0.1;
-    T attmeasureNoise = 2;
+    T attmeasureNoise = 0.5;
 
     const size_t N = 2000;
 

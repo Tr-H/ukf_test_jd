@@ -5,16 +5,16 @@ u = readtable('u.csv');
 ukf = readtable('ukf.csv');
 m = readtable('m.csv');
 figure(1)
-plot(predict.z);
+plot(predict.vx);
 hold on
-plot(ukf.z);
-plot(predict.vz);
-plot(ukf.vz)
+plot(ukf.vx);
+% plot(predict.vz);
+% plot(ukf.vz)
 legend('predict','ukf','predict','ukf');
 hold off
 
 figure(2)
-plot(u.az)
+plot(u.wx)
 
 figure(3)
 plot(m.z)

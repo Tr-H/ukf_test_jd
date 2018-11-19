@@ -10,6 +10,8 @@ project(ukf_test)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
+  nav_msgs
+  sensor_msgs
 )
 
 find_package(Eigen3)
@@ -155,6 +157,8 @@ set(HEADERS
     # Diy
     include/ukf_test/SystemModel.hpp
     include/ukf_test/VioMeasurementModel.hpp
+    include/ukf_test/predict_part.hpp
+    include/ukf_test/update_part.hpp
 )
 
 ## Specify additional locations of header files
@@ -181,6 +185,7 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/ukf_test_node.cpp)
  add_executable(${PROJECT_NAME}_test src/test_main.cpp )
+ add_executable(${PROJECT_NAME}_node src/ukf_test_node.cpp )
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -197,6 +202,9 @@ include_directories(
 #   ${catkin_LIBRARIES}
 # )
  target_link_libraries(${PROJECT_NAME}_test
+   ${catkin_LIBRARIES}
+ )
+ target_link_libraries(${PROJECT_NAME}_node
    ${catkin_LIBRARIES}
  )
 

@@ -121,9 +121,12 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
 
         S f(const S& x, const C& u) const {
             S x_;
-            T ax = u.ax() - x.bax();
-            T ay = u.ay() - x.bay();
-            T az = u.az() - x.baz();
+            // T ax = u.ax() - x.bax();
+            // T ay = u.ay() - x.bay();
+            // T az = u.az() - x.baz();
+            T ax = u.ax();// - x.bax();
+            T ay = u.ay();// - x.bay();
+            T az = u.az();// - x.baz();
 
             T x_new = x.x() + x.vx() * u.dt();
             T y_new = x.y() + x.vy() * u.dt();
@@ -178,6 +181,13 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
             T vy_new = x.vy() + ga_y * u.dt();
             T vz_new = x.vz() + ga_z * u.dt();
 
+            // T wx_new = u.wx() - x.bwx();
+            // T wy_new = u.wy() - x.bwy();
+            // T wz_new = u.wz() - x.bwz();
+            T wx_new = u.wx();// - x.bwx();
+            T wy_new = u.wy();// - x.bwy();
+            T wz_new = u.wz();// - x.bwz();
+
             // Kalman::SquareMatrix<T, 3> R_new;
             Eigen::Matrix3d R_new;
             // Eigen::Matrix3d _I;
@@ -186,12 +196,12 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
             Omega_cha(0,0) = 1;
             Omega_cha(1,1) = 1;
             Omega_cha(2,2) = 1;
-            Omega_cha(0,1) = -u.wz() * u.dt();
-            Omega_cha(0,2) = u.wy() * u.dt();
-            Omega_cha(1,0) = u.wz() * u.dt();
-            Omega_cha(1,2) = -u.wx() * u.dt();
-            Omega_cha(2,0) = -u.wy() * u.dt();
-            Omega_cha(2,1) = u.wx() * u.dt();
+            Omega_cha(0,1) = -wz_new * u.dt();
+            Omega_cha(0,2) = wy_new * u.dt();
+            Omega_cha(1,0) = wz_new * u.dt();
+            Omega_cha(1,2) = -wx_new * u.dt();
+            Omega_cha(2,0) = -wy_new * u.dt();
+            Omega_cha(2,1) = wx_new * u.dt();
             
             R_new = R_ * Omega_cha;
             // std::cout << Omega_cha << std::endl;
