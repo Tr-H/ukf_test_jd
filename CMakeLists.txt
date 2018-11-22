@@ -23,8 +23,8 @@ if(NOT EIGEN3_FOUND)
   set(EIGEN3_LIBRARIES ${EIGEN_LIBRARIES})
 endif()
 
-set(UKF_TEST_FLAGS "-std=c++11")
-set(CMAKE_CXX_FLAGES "${UKF_TEST_FLAGS} -Wall -pedantic -g")
+# set(UKF_TEST_FLAGS "-std=c++11")
+# set(CMAKE_CXX_FLAGES "${UKF_TEST_FLAGS} -Wall -pedantic -g")
 # find_package(Eigen3 REQUIRED)
 add_definitions(-std=c++11)
 ## System dependencies are found with CMake's conventions

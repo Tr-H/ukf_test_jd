@@ -5,9 +5,9 @@ u = readtable('u.csv');
 ukf = readtable('ukf.csv');
 m = readtable('m.csv');
 figure(1)
-plot(predict.vx);
+plot(predict.psi);
 hold on
-plot(ukf.vx);
+plot(ukf.psi);
 % plot(predict.vz);
 % plot(ukf.vz)
 legend('predict','ukf','predict','ukf');
@@ -17,4 +17,4 @@ figure(2)
 plot(u.wx)
 
 figure(3)
-plot(m.z)
+plot(m.psi)

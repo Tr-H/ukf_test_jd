@@ -186,6 +186,16 @@ namespace Kalman {
         {
             // Get square root of covariance
             CovarianceSquareRoot<State> llt;
+            // std::cout << P << std::endl;
+            for (int _i = 0; _i < P.rows() ;_i ++) {
+                if (P(_i, _i) < 0.0f) {
+                    //P(_i, _i) = 1.0f;
+                    std::cout << "wrong P reinit" << std::endl;
+                    P.setIdentity();
+                    break;
+                }
+            }
+
             llt.compute(P);
             if(llt.info() != Eigen::Success)
             {

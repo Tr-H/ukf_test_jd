@@ -1,5 +1,5 @@
 #define _USE_MATH_DEFINES
-#define LOG_FLAG
+// #define LOG_FLAG
 #include <cmath>
 
 
@@ -33,7 +33,8 @@ typedef Test1::VioMeasurementModel<T> VM_;
 int main(int argc, char** argv) {
     ros::init(argc, argv, "ukf_node");
     ros::NodeHandle node("~");
-    Filter_predict_part<T, S_, C_, SM_, VMeas_, VM_ > filter_core();
+    std::cout << "hello" << std::endl;
+    Filter_predict_part<T, S_, C_, SM_, VMeas_, VM_ > filter_core(node);
     ros::AsyncSpinner spinner(3);
     spinner.start();
     ros::waitForShutdown();

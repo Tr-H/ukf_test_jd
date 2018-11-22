@@ -1,22 +1,28 @@
 #ifndef PREDICT_PART_HPP_
 #define PREDICT_PART_HPP_
-// #include "ros/ros.h"
-// #include "ukf_test/SystemModel.hpp"
-// #include "ukf_test/VioMeasurementModel.hpp"
-// #include "geometry_math_type.h"
+
 #include "ukf_test/update_part.hpp"
 #include "sensor_msgs/Imu.h"
+
+
 
 // #include <kalman/UnscentedKalmanFilter.hpp>
 
 template<typename T, class State, class Control, class SystemModel, class VioMeasurement, class VioModel>
 class Filter_predict_part : public Filter_update_part<T, State, Control, SystemModel, VioMeasurement, VioModel>{
     public:
-        Filter_predict_part():
+        Filter_predict_part(ros::NodeHandle & temp_nh):
         _first_predict(true),
-        nh_predict_("~filter_predict") {
+        nh_predict_(temp_nh) {
             this->set_predict_valid(false);
-            imu_sub = nh_predict_.subscribe("/imu", 10, &Filter_predict_part::imu_update_cb, this);
+            std::string imu_topic_name;
+            int predict_rate;
+            nh_predict_.param<std::string>("imu_topic", imu_topic_name, "/imu");
+            nh_predict_.param<std::string>("frame_id", frameId, std::string("imu"));
+            nh_predict_.param<int>("imu_rate", predict_rate, 200);
+            imu_sub = nh_predict_.subscribe(imu_topic_name, 1, &Filter_predict_part::imu_update_cb, this);
+            _delta_t_max = 1.0f/float(predict_rate);
+            std::cout << "max dt = [" << _delta_t_max << "]" << std::endl;
         }
 
         ~Filter_predict_part() {
@@ -29,7 +35,7 @@ class Filter_predict_part : public Filter_update_part<T, State, Control, SystemM
                 _first_predict = false;
             } else {
                 double dt = (msg.header.stamp - _last_timestamp).toSec();
-                if ( dt > 0.005f && dt < 1.0f) {
+                if ( dt > _delta_t_max && dt < 1.0f) {
                     _last_timestamp = msg.header.stamp;
                     if (this->get_update_init_state()) {
                         Control _C;
@@ -40,11 +46,12 @@ class Filter_predict_part : public Filter_update_part<T, State, Control, SystemM
                         _C.wy() = msg.angular_velocity.y;
                         _C.wz() = msg.angular_velocity.z;
                         _C.dt() = dt;
-                        this->predict_process(_C);
+                        this->predict_process(_C, msg.header.stamp);
                         this->set_predict_valid(true);
                     }
                 } else if (dt >= 1.0f) {
                     _first_predict = true;
+                    ROS_INFO("time out !");
                     this->reinit();
                 }
             }
@@ -56,6 +63,8 @@ class Filter_predict_part : public Filter_update_part<T, State, Control, SystemM
         ros::Subscriber imu_sub;
         bool _first_predict;
         ros::Time _last_timestamp;
+        std::string frameId;
+        float _delta_t_max;
 };
 
 #endif
