@@ -37,11 +37,13 @@ class State : public Kalman::Vector<T, 15> {
         static constexpr size_t QY = 10;
         //! Z-orientation
         static constexpr size_t QZ = 11;
-         static constexpr size_t WX = 12;
-        //! Y-orientation
+        //! X-omega
+        static constexpr size_t WX = 12;
+        //! Y-omega
         static constexpr size_t WY = 13;
-        //! Z-orientation
-        static constexpr size_t WZ = 14;       //! accelerator bias
+        //! Z-omega
+        static constexpr size_t WZ = 14;       
+        //! accelerator bias
         // static constexpr size_t baX = 12;
         // static constexpr size_t baY = 13;
         // static constexpr size_t baZ = 14;
@@ -143,15 +145,14 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
             // T ax = u.ax() - x.bax();
             // T ay = u.ay() - x.bay();
             // T az = u.az() - x.baz();
-            T ax = -u.ax();// - x.bax();
-            T ay = -u.ay();// - x.bay();
-            T az = -u.az();// - x.baz();
+            // measurement a in IMU frame
+            T ax = u.ax();// - x.bax();
+            T ay = u.ay();// - x.bay();
+            T az = u.az();// - x.baz();
 
-
-
-            T x_new = x.x() + x.vx() * u.dt();
-            T y_new = x.y() + x.vy() * u.dt();
-            T z_new = x.z() + x.vz() * u.dt();
+            T x_new = x.x() + x.vx() * u.dt() + 0.5 * x.ax() * u.dt() * u.dt();
+            T y_new = x.y() + x.vy() * u.dt() + 0.5 * x.ay() * u.dt() * u.dt();
+            T z_new = x.z() + x.vz() * u.dt() + 0.5 * x.az() * u.dt() * u.dt();
 
             // Kalman::SquareMatrix<T, 3> R_;
             Eigen::Vector3d e_;
@@ -161,14 +162,12 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
             // e_(0) = x.qx();
             // e_(1) = x.qy();
             // e_(2) = x.qz();
-            Eigen::Matrix3d R_;
+            Eigen::Matrix3d R_; // IMU to earth
             get_dcm_from_euler(R_, e_);
-
-
 
             T ga_x = R_(0, 0) * ax + R_(0, 1) * ay + R_(0, 2) * az;
             T ga_y = R_(1, 0) * ax + R_(1, 1) * ay + R_(1, 2) * az;
-            T ga_z = R_(2, 0) * ax + R_(2, 1) * ay + R_(2, 2) * az + T(ONE_G);
+            T ga_z = R_(2, 0) * ax + R_(2, 1) * ay + R_(2, 2) * az - T(ONE_G);
             x_.ax() = ga_x;
             x_.ay() = ga_y;
             x_.az() = ga_z;

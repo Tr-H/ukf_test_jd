@@ -4,8 +4,10 @@
 // #include "ukf_test/SystemModel.hpp"
 // #include "ukf_test/VioMeasurementModel.hpp"
 #include "geometry_math_type.h"
+#include "gps.hpp"
 
 #include "nav_msgs/Odometry.h"
+#include "sensor_msgs/NavSatFix.h"
 
 #include <kalman/UnscentedKalmanFilter.hpp>
 
@@ -20,7 +22,8 @@
 #include <fstream>
 #endif
 
-template<typename T, class State, class Control, class SystemModel, class VioMeasurement, class VioModel>
+template<typename T, class State, class Control, class SystemModel, class OdomMeasurement, class OdomMeasurementModel, class LidarMeasurement, 
+class LidarMeasurementModel, class GpsMeasurement, class GpsMeasurementModel, class VioMeasurement, class VioModel>
 class Filter_update_part {
     public:
  
@@ -28,12 +31,22 @@ class Filter_update_part {
         nh_("~update_part") {
             _has_init = false;
             _predict_has_init = false;
+            _gps_has_init = false;
+            lidar_to_imu << 0, 0.000123, -0.1374;
+            odom_to_imu << 0.2, -0.245123, 0.835524;
+            gps_to_imu << -0.319632, -0.878521, -0.2035;
+            o_to_imu << 0, -0.825123, 0.942;
+
             float alpha, beta, kappa;
-            std::string vio_topic_name;
-            std::string _postopic, _veltopic, _acctopic, _atttopic;
+            std::string odom_topic_name;
+            std::string lidar_topic_name;
+            std::string gps_topic_name;
+            std::string _postopic, _veltopic, _acctopic, _atttopic, wgs_topic;
             pthread_mutex_init(&_ukf_core_mutex, NULL);
 
-            nh_.param<std::string>("vio_topic", vio_topic_name, "/vio_odom" );
+            nh_.param<std::string>("odom_topic", odom_topic_name, "/odom" );
+            nh_.param<std::string>("lidar_topic", lidar_topic_name, "/lidar_odom" );
+            nh_.param<std::string>("gps_topic", gps_topic_name, "/gps" );
             nh_.param<float>("alpha", alpha, 1.0f);
             nh_.param<float>("beta", beta, 2.0f);
             nh_.param<float>("kappa", kappa, 0.0f);
@@ -42,7 +55,8 @@ class Filter_update_part {
             nh_.param<std::string>("veltopic", _veltopic, "/vio_data_rigid1/vel");
             nh_.param<std::string>("acctopic", _acctopic, "/vio_data_rigid1/acc");
             nh_.param<std::string>("atttopic", _atttopic, "/vio_data_rigid1/att");
-
+            nh_.param<std::string>("wgstopic", wgs_topic, "/wgs");
+            
             T _alpha = T(alpha);
             T _beta = T(beta);
             T _kappa = T(kappa);
@@ -52,12 +66,15 @@ class Filter_update_part {
             std::cout << "kappa: " << _kappa << std::endl;
             _ukf_ptr = new Kalman::UnscentedKalmanFilter<State>(_alpha, _beta, _kappa);
             
-            Vio_measure_sub = nh_.subscribe(vio_topic_name, 1, &Filter_update_part::vio_update_cb, this);
+            Odom_measure_sub = nh_.subscribe(odom_topic_name, 1, &Filter_update_part::odom_update_cb, this);
+            Gps_measure_sub = nh_.subscribe(gps_topic_name, 1, &Filter_update_part::gps_update_cb, this);
+            Lidar_odom_sub = nh_.subscribe(lidar_topic_name, 1, &Filter_update_part::lidar_update_cb, this);
             
             _rigid_pos_pub = nh_.advertise<geometry_msgs::PoseStamped>(_postopic, 2);
             _rigid_vel_pub = nh_.advertise<geometry_msgs::Vector3Stamped>(_veltopic, 2);
             _rigid_acc_pub = nh_.advertise<geometry_msgs::Vector3Stamped>(_acctopic, 2);
             _rigid_att_pub = nh_.advertise<geometry_msgs::PoseStamped>(_atttopic, 2);
+            _WGS_84_pub = nh_.advertise<sensor_msgs::NavSatFix>(wgs_topic, 2);
             
     #ifdef LOG_FLAG
             start_logger();
@@ -68,50 +85,118 @@ class Filter_update_part {
         ~Filter_update_part() {
             delete _ukf_ptr;
         }
-
-        void vio_update_cb(const nav_msgs::Odometry& msg) {
+        
+        void lidar_update_cb(const nav_msgs::Odometry& msg) {
             if (!_has_init) {
                 State x;
                 x.setZero();
-                x.x() = msg.pose.pose.position.x;
-                x.y() = msg.pose.pose.position.y;
-                x.z() = msg.pose.pose.position.z;
-                Eigen::Quaterniond vio_q;
-                vio_q.w() = msg.pose.pose.orientation.w;
-                vio_q.x() = msg.pose.pose.orientation.x;
-                vio_q.y() = msg.pose.pose.orientation.y;
-                vio_q.z() = msg.pose.pose.orientation.z;
-                Eigen::Vector3d vio_euler;
-                get_euler_from_q(vio_euler, vio_q);
-                x.qx() = vio_euler(0)/T(M_PI)*T(180);
-                x.qy() = vio_euler(1)/T(M_PI)*T(180);
-                x.qz() = vio_euler(2)/T(M_PI)*T(180);
+                x.x() = msg.pose.pose.position.x + lidar_to_imu[0];
+                x.y() = msg.pose.pose.position.z + lidar_to_imu[1];
+                x.z() = - msg.pose.pose.position.y + lidar_to_imu[2];
+                Eigen::Quaterniond lidar_q;
+                lidar_q.w() = msg.pose.pose.orientation.w;
+                lidar_q.x() = msg.pose.pose.orientation.x;
+                lidar_q.y() = msg.pose.pose.orientation.z;
+                lidar_q.z() = - msg.pose.pose.orientation.y;
+                Eigen::Vector3d lidar_euler;
+                get_euler_from_q(lidar_euler, lidar_q);
+                x.qx() = lidar_euler(0)/T(M_PI)*T(180);
+                x.qy() = lidar_euler(1)/T(M_PI)*T(180);
+                x.qz() = lidar_euler(2)/T(M_PI)*T(180);
                 init_process(x);
                 _has_init = true;
             } else {
-                VioMeasurement vio_state;
-                vio_state.vio_x() = msg.pose.pose.position.x;
-                vio_state.vio_y() = msg.pose.pose.position.y;
-                vio_state.vio_z() = msg.pose.pose.position.z;
-                Eigen::Quaterniond vio_q;
-                vio_q.w() = msg.pose.pose.orientation.w;
-                vio_q.x() = msg.pose.pose.orientation.x;
-                vio_q.y() = msg.pose.pose.orientation.y;
-                vio_q.z() = msg.pose.pose.orientation.z;
-                Eigen::Vector3d vio_euler;
-                get_euler_from_q(vio_euler, vio_q);
-                vio_state.vio_qx() = vio_euler(0)/T(M_PI)*T(180);
-                vio_state.vio_qy() = vio_euler(1)/T(M_PI)*T(180);
-                vio_state.vio_qz() = vio_euler(2)/T(M_PI)*T(180);
+                LidarMeasurement lidar_state;
+                lidar_state.lidar_x() = msg.pose.pose.position.x + lidar_to_imu[0];
+                lidar_state.lidar_y() = msg.pose.pose.position.z + lidar_to_imu[1];
+                lidar_state.lidar_z() = - msg.pose.pose.position.y + lidar_to_imu[2];
+                Start_in_earth[0] = lidar_state.lidar_x();
+                Start_in_earth[1] = lidar_state.lidar_y();
+                Start_in_earth[2] = lidar_state.lidar_z();
+                Eigen::Quaterniond lidar_q;
+                lidar_q.w() = msg.pose.pose.orientation.w;
+                lidar_q.x() = msg.pose.pose.orientation.x;
+                lidar_q.y() = msg.pose.pose.orientation.z;
+                lidar_q.z() = - msg.pose.pose.orientation.y;
+                Eigen::Vector3d lidar_euler;
+                get_euler_from_q(lidar_euler, lidar_q);
+                lidar_state.lidar_qx() = lidar_euler(0)/T(M_PI)*T(180);
+                lidar_state.lidar_qy() = lidar_euler(1)/T(M_PI)*T(180);
+                lidar_state.lidar_qz() = lidar_euler(2)/T(M_PI)*T(180);
+                if (!_predict_has_init) {
+                    State x;
+                    x.setZero();
+                    x.x() = msg.pose.pose.position.x + lidar_to_imu[0];
+                    x.y() = msg.pose.pose.position.z + lidar_to_imu[1];
+                    x.z() = - msg.pose.pose.position.y + lidar_to_imu[2];
+                    Start_in_earth[0] = lidar_state.lidar_x();
+                    Start_in_earth[1] = lidar_state.lidar_y();
+                    Start_in_earth[2] = lidar_state.lidar_z();
+                    Eigen::Quaterniond lidar_q;
+                    lidar_q.w() = msg.pose.pose.orientation.w;
+                    lidar_q.x() = msg.pose.pose.orientation.x;
+                    lidar_q.y() = msg.pose.pose.orientation.z;
+                    lidar_q.z() = - msg.pose.pose.orientation.y;
+                    Eigen::Vector3d lidar_euler;
+                    get_euler_from_q(lidar_euler, lidar_q);
+                    x.qx() = lidar_euler(0)/T(M_PI)*T(180);
+                    x.qy() = lidar_euler(1)/T(M_PI)*T(180);
+                    x.qz() = lidar_euler(2)/T(M_PI)*T(180);
+                    init_process(x);
+                } else {
+                    update_process_lidar(lidar_state, msg.header.stamp);
+                }
+            }
+        }
 
-                vio_state.vio_vx() = msg.twist.twist.linear.x;
-                vio_state.vio_vy() = msg.twist.twist.linear.y;
-                vio_state.vio_vz() = msg.twist.twist.linear.z;
-                // vio_state.vio_wx() = msg.twist.twist.angular.x
-                // vio_state.vio_wy() = msg.twist.twist.angular.y;
-                // vio_state.vio_wz() = msg.twist.twist.angular.z;
+        void gps_update_cb(const sensor_msgs::NavSatFix& msg) {
+            if (!_has_init) {
+                return;
+            } else {
+                if (!_gps_has_init) {
+                    // Center[0] = msg.latitude;
+                    // Center[1] = msg.longitude;
+                    // Center[2] = msg.altitude;
+                    Eigen::Vector3d Start_wgs;
+                    Start_wgs[0] = msg.latitude;
+                    Start_wgs[1] = msg.longitude;
+                    Start_wgs[2] = msg.altitude;
+                    Eigen::Vector3d Start_to_Origin, Center_XYZ;
+                    Start_to_Origin = - Start_in_earth;
+                    xyz_to_XYZ(Start_to_Origin, Start_wgs, Center_XYZ);
+                    XYZ_to_WGS(Center_XYZ, Center);
+                    Center_yaw[2] = msg.position_covariance[0];
+                    _gps_has_init = true;
+                } else {
+                    Eigen::Vector3d gps_data;
+                    gps_data[0] = msg.latitude;
+                    gps_data[1] = msg.longitude;
+                    gps_data[2] = msg.altitude;
 
-                update_process(vio_state, msg.header.stamp);
+                    Eigen::Vector3d gps_XYZ;
+                    WGS_to_XYZ(gps_data, gps_XYZ);
+                    Eigen::Vector3d gps_xyz;
+                    XYZ_to_xyz(gps_XYZ, Center, gps_xyz);
+                    GpsMeasurement gps_state;
+                    gps_state.gps_x() = - gps_xyz[0] + gps_to_imu[0];
+                    gps_state.gps_y() = gps_xyz[1] + gps_to_imu[1];
+                    gps_state.gps_z() = - gps_xyz[2] + gps_to_imu[2];
+                    gps_state.gps_yaw() = - msg.position_covariance[0] + Center_yaw[2];
+                    update_process_gps(gps_state, msg.header.stamp);
+                }
+            }
+       }
+
+        void odom_update_cb(const nav_msgs::Odometry& msg) {
+            if (!_has_init) {
+                return;
+            } else {
+                OdomMeasurement odom_state;
+                odom_state.odom_vx() = 0;
+                odom_state.odom_vy() = msg.twist.twist.linear.x;
+                odom_state.odom_vz() = 0;
+                
+                update_process_odom(odom_state, msg.header.stamp);
             }
         }
 
@@ -119,6 +204,7 @@ class Filter_update_part {
             ROS_WARN("update reinit");
             _has_init = false;
             _predict_has_init = false;
+            _gps_has_init = false;
         }
 
         void init_process(State& init_state) {
@@ -127,17 +213,45 @@ class Filter_update_part {
             pthread_mutex_unlock(&_ukf_core_mutex);
         }
 
-        void update_process(VioMeasurement& vio_state, ros::Time _time_stamp) {
+        void update_process_lidar(LidarMeasurement& lidar_state, ros::Time _time_stamp) {
             pthread_mutex_lock(&_ukf_core_mutex);
-            _x_ukf = _ukf_ptr->update(_vm, vio_state);
+            _x_ukf = _ukf_ptr->update(_lidarm, lidar_state);
             pthread_mutex_unlock(&_ukf_core_mutex);
             if (_verbose) {
-                std::cout << "x(vio): [" << vio_state << "]" << std::endl;
+                std::cout << "x(lidar): [" << lidar_state << "]" << std::endl;
                 std::cout << "x(ukf): [" << _x_ukf << "]" << std::endl;
             }
     #ifdef LOG_FLAG
             // record_predict(_x_ukf, _time_stamp);
-            record_update(vio_state, _time_stamp);
+            record_update_lidar(lidar_state, _time_stamp);
+    #endif
+        }
+
+        void update_process_gps(GpsMeasurement& gps_state, ros::Time _time_stamp) {
+            pthread_mutex_lock(&_ukf_core_mutex);
+            _x_ukf = _ukf_ptr->update(_gpsm, gps_state);
+            pthread_mutex_unlock(&_ukf_core_mutex);
+            if (_verbose) {
+                std::cout << "x(gps): [" << gps_state << "]" << std::endl;
+                std::cout << "x(ukf): [" << _x_ukf << "]" << std::endl;
+            }
+    #ifdef LOG_FLAG
+            // record_predict(_x_ukf, _time_stamp);
+            record_update_gps(gps_state, _time_stamp);
+    #endif
+        }
+
+        void update_process_odom(OdomMeasurement& odom_state, ros::Time _time_stamp) {
+            pthread_mutex_lock(&_ukf_core_mutex);
+            _x_ukf = _ukf_ptr->update(_om, odom_state);
+            pthread_mutex_unlock(&_ukf_core_mutex);
+            if (_verbose) {
+                std::cout << "x(odom): [" << odom_state << "]" << std::endl;
+                std::cout << "x(ukf): [" << _x_ukf << "]" << std::endl;
+            }
+    #ifdef LOG_FLAG
+            // record_predict(_x_ukf, _time_stamp);
+            record_update_odom(odom_state, _time_stamp);
     #endif
         }
 
@@ -169,6 +283,7 @@ class Filter_update_part {
             geometry_msgs::Vector3Stamped _vel_msg;
             geometry_msgs::Vector3Stamped _acc_msg;
             geometry_msgs::PoseStamped _att_msg;
+            sensor_msgs::NavSatFix WGS_84;
 
             _pos_msg.header.stamp = _timestamp;
             _pos_msg.pose.position.x = now_state.x();
@@ -197,10 +312,26 @@ class Filter_update_part {
             _att_msg.pose.orientation.y = _quat_att.y();
             _att_msg.pose.orientation.z = _quat_att.z();
 
+            Eigen::Vector3d pos_xyz;
+            pos_xyz[0] = - now_state.x();
+            pos_xyz[1] = now_state.y();
+            pos_xyz[2] = - now_state.z();
+            T pos_yaw;
+            pos_yaw = - now_state.qz() * T(M_PI) / T(180) + Center_yaw[2]; 
+            Eigen::Vector3d pos_XYZ, pos_wgs; 
+            xyz_to_XYZ(pos_xyz, Center, pos_XYZ);
+            XYZ_to_WGS(pos_XYZ, pos_wgs);
+            WGS_84.header.stamp = _timestamp;
+            WGS_84.latitude = pos_wgs[0];
+            WGS_84.longitude = pos_wgs[1];
+            WGS_84.altitude = pos_wgs[2];
+            WGS_84.position_covariance[0] = pos_yaw;
+
             _rigid_pos_pub.publish(_pos_msg);
             _rigid_vel_pub.publish(_vel_msg);
             _rigid_acc_pub.publish(_acc_msg);
             _rigid_att_pub.publish(_att_msg);
+            _WGS_84_pub.publish(WGS_84);
         }
 
     #ifdef LOG_FLAG
@@ -273,18 +404,51 @@ class Filter_update_part {
             }
         }
 
-        void record_update(VioMeasurement& _m_d, ros::Time & _time_stamp) {
+        void record_update_lidar(LidarMeasurement& _m_d, ros::Time & _time_stamp) {
             if (update_logger.is_open()) {
+                float zero = 0.0;
                 update_logger << _time_stamp << ",";
-                update_logger << _m_d.vio_x() << ",";
-                update_logger << _m_d.vio_y() << ",";
-                update_logger << _m_d.vio_z() << ",";
-                update_logger << _m_d.vio_vx() << ",";
-                update_logger << _m_d.vio_vy() << ",";
-                update_logger << _m_d.vio_vz() << ",";
-                update_logger << _m_d.vio_qx() << ",";
-                update_logger << _m_d.vio_qy() << ",";
-                update_logger << _m_d.vio_qz() << std::endl;
+                update_logger << _m_d.lidar_x() << ",";
+                update_logger << _m_d.lidar_y() << ",";
+                update_logger << _m_d.lidar_z() << ",";
+                update_logger << zero << ",";
+                update_logger << zero << ",";
+                update_logger << zero << ",";
+                update_logger << _m_d.lidar_qx() << ",";
+                update_logger << _m_d.lidar_qy() << ",";
+                update_logger << _m_d.lidar_qz() << std::endl;
+            }
+        }
+
+       void record_update_gps(GpsMeasurement& _m_d, ros::Time & _time_stamp) {
+            if (update_logger.is_open()) {
+                float zero = 0.0;
+                update_logger << _time_stamp << ",";
+                update_logger << _m_d.gps_x() << ",";
+                update_logger << _m_d.gps_y() << ",";
+                update_logger << _m_d.gps_z() << ",";
+                update_logger << zero << ",";
+                update_logger << zero << ",";
+                update_logger << zero << ",";
+                update_logger << zero << ",";
+                update_logger << zero << ",";
+                update_logger << _m_d.gps_yaw() << std::endl;
+            }
+        }
+
+        void record_update_odom(OdomMeasurement& _m_d, ros::Time & _time_stamp) {
+            if (update_logger.is_open()) {
+                float zero = 0.0;
+                update_logger << _time_stamp << ",";
+                update_logger << zero << ",";
+                update_logger << zero << ",";
+                update_logger << zero << ",";
+                update_logger << _m_d.odom_vx() << ",";
+                update_logger << _m_d.odom_vy() << ",";
+                update_logger << _m_d.odom_vz() << ",";
+                update_logger << zero << ",";
+                update_logger << zero << ",";
+                update_logger << zero << std::endl;
             }
         }
     #endif
@@ -295,15 +459,29 @@ class Filter_update_part {
         Kalman::UnscentedKalmanFilter<State> * _ukf_ptr;
         bool _has_init;
         bool _predict_has_init;
-        ros::Subscriber Vio_measure_sub;
+        bool _gps_has_init;
+        ros::Subscriber Odom_measure_sub;
+        ros::Subscriber Lidar_odom_sub;
+        ros::Subscriber Gps_measure_sub;
         ros::Publisher _rigid_pos_pub;
         ros::Publisher _rigid_vel_pub;
         ros::Publisher _rigid_acc_pub;
         ros::Publisher _rigid_att_pub;
+        ros::Publisher _WGS_84_pub;
+        Eigen::Vector3d Start_in_earth;
+        Eigen::Vector3d Center;
+        Eigen::Vector3d Center_yaw;
         State _x_ukf;
         SystemModel _sys;
         VioModel _vm;
+        OdomMeasurementModel _om;
+        GpsMeasurementModel _gpsm;
+        LidarMeasurementModel _lidarm;
         bool _verbose;
+        Eigen::Vector3d lidar_to_imu;
+        Eigen::Vector3d odom_to_imu;
+        Eigen::Vector3d gps_to_imu;
+        Eigen::Vector3d o_to_imu;
         pthread_mutex_t _ukf_core_mutex;
     #ifdef LOG_FLAG
         std::ofstream predict_logger;

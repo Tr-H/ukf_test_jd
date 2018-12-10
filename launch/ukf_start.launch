@@ -8,10 +8,13 @@
 
 <group ns = "ukf_ns">
     <node pkg="ukf_test" name="ukf_node" type="ukf_test_node" output="$(arg output)">
-        <param name="imu_topic" type="string" value="/imu_ns/imu/imu" />
+        <param name="imu_topic" type="string" value="/compensated_imu" />
         <param name="frame_id" type="string" value="$(arg frame_id)"/>
-        <param name="imu_rate" type="int" value="250" />
+        <param name="imu_rate" type="int" value="200" />
         <param name="update_part/vio_topic" type="string" value="/fla/vio/odom"/>
+        <param name="update_part/odom_topic" type="string" value="/odom"/>
+        <param name="update_part/lidar_topic" type="string" value="/lidar_odom"/>
+        <param name="update_part/gps_topic" type="string" value="/fix"/>
         <param name="update_part/alpha"  value="1" />
         <param name="update_part/beta"  value="2.0"/>
         <param name="update_part/kappa"  value="0"/>

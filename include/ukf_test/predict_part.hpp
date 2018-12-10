@@ -8,8 +8,10 @@
 
 // #include <kalman/UnscentedKalmanFilter.hpp>
 
-template<typename T, class State, class Control, class SystemModel, class VioMeasurement, class VioModel>
-class Filter_predict_part : public Filter_update_part<T, State, Control, SystemModel, VioMeasurement, VioModel>{
+template<typename T, class State, class Control, class SystemModel, class OdomMeasurement, class OdomMeasurementModel, class LidarMeasurement, 
+class LidarMeasurementModel, class GpsMeasurement, class GpsMeasurementModel, class VioMeasurement, class VioModel>
+class Filter_predict_part : public Filter_update_part<T, State, Control, SystemModel, OdomMeasurement, OdomMeasurementModel, LidarMeasurement, 
+LidarMeasurementModel, GpsMeasurement, GpsMeasurementModel, VioMeasurement, VioModel>{
     public:
         Filter_predict_part(ros::NodeHandle & temp_nh):
         _first_predict(true),
@@ -35,7 +37,7 @@ class Filter_predict_part : public Filter_update_part<T, State, Control, SystemM
                 _first_predict = false;
             } else {
                 double dt = (msg.header.stamp - _last_timestamp).toSec();
-                if ( dt > _delta_t_max && dt < 1.0f) {
+                if ( dt > _delta_t_max && dt < 1.0f) { // limit predict rate?
                     _last_timestamp = msg.header.stamp;
                     if (this->get_update_init_state()) {
                         Control _C;
