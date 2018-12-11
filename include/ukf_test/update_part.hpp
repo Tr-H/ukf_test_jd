@@ -32,6 +32,10 @@ class Filter_update_part {
             _has_init = false;
             _predict_has_init = false;
             _gps_has_init = false;
+            _update_has_ready = false;
+            // _lidar_update_has_ready = false;
+            // _gps_update_has_ready = false;
+            // _odom_update_has_ready = false;
             lidar_to_imu << 0, 0.000123, -0.1374;
             odom_to_imu << 0.2, -0.245123, 0.835524;
             gps_to_imu << -0.319632, -0.878521, -0.2035;
@@ -145,7 +149,10 @@ class Filter_update_part {
                     x.qz() = lidar_euler(2)/T(M_PI)*T(180);
                     init_process(x);
                 } else {
-                    update_process_lidar(lidar_state, msg.header.stamp);
+                    if (_update_has_ready) {
+                        update_process_lidar(lidar_state, msg.header.stamp);
+                        _update_has_ready = false;
+                    }
                 }
             }
         }
@@ -162,10 +169,15 @@ class Filter_update_part {
                     Start_wgs[0] = msg.latitude;
                     Start_wgs[1] = msg.longitude;
                     Start_wgs[2] = msg.altitude;
-                    Eigen::Vector3d Start_to_Origin, Center_XYZ;
+                    Eigen::Vector3d Start_to_Origin;
                     Start_to_Origin = - Start_in_earth;
-                    xyz_to_XYZ(Start_to_Origin, Start_wgs, Center_XYZ);
-                    XYZ_to_WGS(Center_XYZ, Center);
+                    std::cout << "-lidar_xyz:" << Start_to_Origin.transpose() << std::endl;
+                    // Eigen::Vector3d Center_XYZ;
+                    // xyz_to_XYZ(Start_to_Origin, Start_wgs, Center_XYZ);
+                    // XYZ_to_WGS(Center_XYZ, Center);
+                    xyz_to_WGS(Start_to_Origin, Start_wgs, Center);
+                    std::cout << "Start_wgs:" << Start_wgs.transpose() << std::endl;
+                    std::cout << "Origin_wgs:" << Center.transpose() << std::endl;
                     Center_yaw[2] = msg.position_covariance[0];
                     _gps_has_init = true;
                 } else {
@@ -174,16 +186,27 @@ class Filter_update_part {
                     gps_data[1] = msg.longitude;
                     gps_data[2] = msg.altitude;
 
-                    Eigen::Vector3d gps_XYZ;
-                    WGS_to_XYZ(gps_data, gps_XYZ);
+                    // Eigen::Vector3d gps_XYZ;
+                    // WGS_to_XYZ(gps_data, gps_XYZ);
                     Eigen::Vector3d gps_xyz;
-                    XYZ_to_xyz(gps_XYZ, Center, gps_xyz);
+                    // XYZ_to_xyz(gps_XYZ, Center, gps_xyz);
+                    WGS_to_xyz(gps_data, Center, gps_xyz);
                     GpsMeasurement gps_state;
-                    gps_state.gps_x() = - gps_xyz[0] + gps_to_imu[0];
+                    gps_state.gps_x() = gps_xyz[0] + gps_to_imu[0];
                     gps_state.gps_y() = gps_xyz[1] + gps_to_imu[1];
-                    gps_state.gps_z() = - gps_xyz[2] + gps_to_imu[2];
+                    gps_state.gps_z() = gps_xyz[2] + gps_to_imu[2];
+                    std::cout << "gps_xyz:" << gps_xyz.transpose() << std::endl;
+                    // Eigen::Vector3d gps_test;
+                    // gps_test[0] = gps_xyz[0] + gps_to_imu[0];
+                    // gps_test[1] = gps_xyz[1] + gps_to_imu[1];
+                    // gps_test[2] = gps_xyz[2] + gps_to_imu[2];
+                    // std::cout << "gps_test:" << gps_test.transpose() << std::endl;
+                    
                     gps_state.gps_yaw() = - msg.position_covariance[0] + Center_yaw[2];
-                    // update_process_gps(gps_state, msg.header.stamp);
+                    if (_update_has_ready) {
+                        //update_process_gps(gps_state, msg.header.stamp);
+                        _update_has_ready = false;
+                    }
                 }
             }
        }
@@ -196,8 +219,10 @@ class Filter_update_part {
                 odom_state.odom_vx() = 0;
                 odom_state.odom_vy() = msg.twist.twist.linear.x;
                 odom_state.odom_vz() = 0;
-                
-                update_process_odom(odom_state, msg.header.stamp);
+                if (_update_has_ready) {
+                    update_process_odom(odom_state, msg.header.stamp);
+                    _update_has_ready = false;
+                }
             }
         }
 
@@ -260,7 +285,11 @@ class Filter_update_part {
             pthread_mutex_lock(&_ukf_core_mutex);
             _x_ukf = _ukf_ptr->predict(_sys, imu_state);
             pthread_mutex_unlock(&_ukf_core_mutex);
-            ros_publish_state(_x_ukf, _time_stamp);
+            ros_publish_state(_x_ukf, _time_stamp); 
+            _update_has_ready = true;
+            // _lidar_update_has_ready = true;
+            // _gps_update_has_ready = true;
+            // _odom_update_has_ready = true;
     #ifdef LOG_FLAG
             record_predict(_x_ukf, _time_stamp);
     #endif
@@ -320,8 +349,9 @@ class Filter_update_part {
             T pos_yaw;
             pos_yaw = - now_state.qz() * T(M_PI) / T(180) + Center_yaw[2]; 
             Eigen::Vector3d pos_XYZ, pos_wgs; 
-            xyz_to_XYZ(pos_xyz, Center, pos_XYZ);
-            XYZ_to_WGS(pos_XYZ, pos_wgs);
+            // xyz_to_XYZ(pos_xyz, Center, pos_XYZ);
+            // XYZ_to_WGS(pos_XYZ, pos_wgs);
+            xyz_to_WGS(pos_xyz, Center, pos_wgs);
             WGS_84.header.stamp = _timestamp;
             WGS_84.latitude = pos_wgs[0];
             WGS_84.longitude = pos_wgs[1];
@@ -473,6 +503,10 @@ class Filter_update_part {
         bool _has_init;
         bool _predict_has_init;
         bool _gps_has_init;
+        bool _update_has_ready;
+        // bool _lidar_update_has_ready;
+        // bool _gps_update_has_ready;
+        // bool _odom_update_has_ready;
         ros::Subscriber Odom_measure_sub;
         ros::Subscriber Lidar_odom_sub;
         ros::Subscriber Gps_measure_sub;
