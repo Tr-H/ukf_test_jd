@@ -31,22 +31,21 @@ double constrain(double value, double min, double max) {
     return value;
 }
 
-void WGS_to_xyz(Eigen::Vector3d &wgs, Eigen::Vector3d &Center, Eigen::Vector3d &xyz) {
+void WGS_to_xyz(Eigen::Vector3d &wgs, Eigen::Vector3d &Center, Eigen::Vector3d &xyz_imu) {
+	Eigen::Vector3d xyz;
     double a = 6371000; //meters (m)
-    double gps_lat = wgs[0] ;
-    double gps_lon = wgs[1] ;
-    double lat_rad = gps_lat / 180 * M_PI;
-    double lon_rad = gps_lon / 180 * M_PI;
+    double lat_rad = wgs[0] / 180 * M_PI;
+    double lon_rad = wgs[1] / 180 * M_PI;
     double Center_lat_rad = Center[0]  /180 * M_PI;
     double Center_lon_rad = Center[1]  /180 * M_PI;
 
 	double sin_lat = sin(lat_rad);
 	double cos_lat = cos(lat_rad);
 
-	const double cos_d_lon = cos(lon_rad - Center_lon_rad);
+	double cos_d_lon = cos(lon_rad - Center_lon_rad);
 
-	const double arg = constrain(sin(Center_lat_rad) * sin_lat + cos(Center_lat_rad) * cos_lat * cos_d_lon, -1.0,  1.0);
-	const double c = acos(arg);
+	double arg = constrain(sin(Center_lat_rad) * sin_lat + cos(Center_lat_rad) * cos_lat * cos_d_lon, -1.0,  1.0);
+	double c = acos(arg);
 
 	double k = 1.0;
 
@@ -56,10 +55,16 @@ void WGS_to_xyz(Eigen::Vector3d &wgs, Eigen::Vector3d &Center, Eigen::Vector3d &
 
 	xyz[0] = k * (cos(Center_lat_rad) * sin_lat - sin(Center_lat_rad) * cos_lat * cos_d_lon) * a;
 	xyz[1] = k * cos_lat * sin(lon_rad - Center_lon_rad) * a;
+	xyz[2] = 0;
+	xyz_imu[0] = - xyz[1];
+	xyz_imu[1] = xyz[0];
 
 }
 
-void xyz_to_WGS(Eigen::Vector3d &xyz, Eigen::Vector3d &Center, Eigen::Vector3d &wgs) {
+void xyz_to_WGS(Eigen::Vector3d &xyz_imu, Eigen::Vector3d &Center, Eigen::Vector3d &wgs) {
+	Eigen::Vector3d xyz;
+	xyz[0] = xyz_imu[1];
+	xyz[1] = - xyz_imu[0];
     double a = 6371000; //meters (m)
     double x_rad = xyz[0] / a;
     double y_rad = xyz[1] / a;
@@ -77,10 +82,12 @@ void xyz_to_WGS(Eigen::Vector3d &xyz, Eigen::Vector3d &Center, Eigen::Vector3d &
 
 		wgs[0] = lat_rad / M_PI * 180;
 		wgs[1] = lon_rad / M_PI * 180;
+		wgs[2] = 0;
 
 	} else {
 		wgs[0] = Center_lat_rad / M_PI * 180;
 		wgs[1] = Center_lon_rad / M_PI * 180;
+		wgs[2] = 0;
 	}
 }
 

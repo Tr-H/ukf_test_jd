@@ -7,23 +7,23 @@
 namespace Test1 {
 
 template<typename T>
-class GpsMeasurement : public Kalman::Vector<T, 4> {
+class GpsMeasurement : public Kalman::Vector<T, 3> {
     public:
-        KALMAN_VECTOR(GpsMeasurement, T, 4)
+        KALMAN_VECTOR(GpsMeasurement, T, 3)
 
         static constexpr size_t GPS_X = 0;
         static constexpr size_t GPS_Y = 1;
-        static constexpr size_t GPS_Z = 2;
-        static constexpr size_t GPS_YAW = 3;
+        // static constexpr size_t GPS_Z = 2;
+        static constexpr size_t GPS_YAW = 2;
 
         T gps_x()     const { return (*this)[ GPS_X ]; }  
         T gps_y()     const { return (*this)[ GPS_Y ]; }  
-        T gps_z()     const { return (*this)[ GPS_Z ]; }  
+        // T gps_z()     const { return (*this)[ GPS_Z ]; }  
         T gps_yaw()     const { return (*this)[ GPS_YAW ]; }  
 
         T& gps_x()     { return (*this)[ GPS_X ]; }
         T& gps_y()     { return (*this)[ GPS_Y ]; }
-        T& gps_z()     { return (*this)[ GPS_Z ]; }
+        // T& gps_z()     { return (*this)[ GPS_Z ]; }
         T& gps_yaw()     { return (*this)[ GPS_YAW ]; }
 
 };
@@ -48,7 +48,7 @@ class GpsMeasurementModel : public Kalman::MeasurementModel<State<T>, GpsMeasure
             // // measurement.odom_vz() = odom_R(0, 2) * x.vx() + odom_R(1, 2) * x.vy() + odom_R(2, 2) * x.vz();
             measurement.gps_x() = x.x();
             measurement.gps_y() = x.y();
-            measurement.gps_z() = x.z();
+            // measurement.gps_z() = x.z();
             measurement.gps_yaw() = x.qz();
 
             return measurement;

@@ -171,10 +171,10 @@ class Filter_update_part {
                     Start_wgs[2] = msg.altitude;
                     Eigen::Vector3d Start_to_Origin;
                     Start_to_Origin = - Start_in_earth;
-                    std::cout << "-lidar_xyz:" << Start_to_Origin.transpose() << std::endl;
                     // Eigen::Vector3d Center_XYZ;
                     // xyz_to_XYZ(Start_to_Origin, Start_wgs, Center_XYZ);
                     // XYZ_to_WGS(Center_XYZ, Center);
+
                     xyz_to_WGS(Start_to_Origin, Start_wgs, Center);
                     std::cout << "Start_wgs:" << Start_wgs.transpose() << std::endl;
                     std::cout << "Origin_wgs:" << Center.transpose() << std::endl;
@@ -194,7 +194,7 @@ class Filter_update_part {
                     GpsMeasurement gps_state;
                     gps_state.gps_x() = gps_xyz[0] + gps_to_imu[0];
                     gps_state.gps_y() = gps_xyz[1] + gps_to_imu[1];
-                    gps_state.gps_z() = gps_xyz[2] + gps_to_imu[2];
+                    // gps_state.gps_z() = gps_xyz[2] + gps_to_imu[2];
                     std::cout << "gps_xyz:" << gps_xyz.transpose() << std::endl;
                     // Eigen::Vector3d gps_test;
                     // gps_test[0] = gps_xyz[0] + gps_to_imu[0];
@@ -292,6 +292,7 @@ class Filter_update_part {
             // _odom_update_has_ready = true;
     #ifdef LOG_FLAG
             record_predict(_x_ukf, _time_stamp);
+            record_WGS(_x_ukf, _time_stamp);
     #endif
         }
 
@@ -420,6 +421,24 @@ class Filter_update_part {
             }
 
 
+        }
+
+        void record_WGS(State& _p_d, ros::Time& _time_stamp) {
+            Eigen::Vector3d final_wgs;
+            Eigen::Vector3d _pos;
+            _pos[0] = _p_d.x();
+            _pos[1] = _p_d.y();
+            _pos[2] = 0;
+            xyz_to_WGS(_pos, Center, final_wgs);
+            T pos_yaw;
+            pos_yaw = - _p_d.qz() + Center_yaw[2]; 
+
+            if (wgs_logger.is_open()) {
+                wgs_logger << _time_stamp << ",";
+                wgs_logger << final_wgs[0] << ",";
+                wgs_logger << final_wgs[1] << ",";
+                wgs_logger << pos_yaw << std::endl;
+            }
         }
 
         void record_predict(State& _p_d, ros::Time & _time_stamp) {
