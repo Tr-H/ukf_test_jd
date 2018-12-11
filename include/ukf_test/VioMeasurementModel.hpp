@@ -79,9 +79,14 @@ class OdomMeasurementModel : public Kalman::MeasurementModel<State<T>, OdomMeasu
     public:
         typedef Test1::State<T> S;
         typedef Test1::OdomMeasurement<T> M;
-        OdomMeasurementModel() {}
+        OdomMeasurementModel() {
+            this->P(0,0) = T(0.2);
+            this->P(1,1) = T(0.2);
+            this->P(2,2) = T(0.2);
+        }
 
         M h(const S& x) const {
+            // std::cout << "h: x" << x.transpose() << std::endl;
             M measurement;
             Eigen::Matrix3d odom_R;
             Eigen::Vector3d e;
@@ -95,6 +100,8 @@ class OdomMeasurementModel : public Kalman::MeasurementModel<State<T>, OdomMeasu
             measurement.odom_vx() = 0;
             measurement.odom_vy() = odom_R(0, 1) * x.vx() + odom_R(1, 1) * x.vy() + odom_R(2, 1) * x.vz();
             measurement.odom_vz() = 0;
+
+            // std::cout << "h: m" << measurement.transpose() << std::endl;
 
             return measurement;
         }
@@ -125,9 +132,9 @@ class LidarMeasurement : public Kalman::Vector<T, 6> {
         T& lidar_y()     { return (*this)[ LIDAR_Y]; }
         T& lidar_z()     { return (*this)[ LIDAR_Z]; }
         // T& lidar_qw()     { return (*this)[ LIDAR_QW]; }
-        T& lidar_qx()     { return (*this)[ LIDAR_X]; }
-        T& lidar_qy()     { return (*this)[ LIDAR_Y]; }
-        T& lidar_qz()     { return (*this)[ LIDAR_Z]; }
+        T& lidar_qx()     { return (*this)[ LIDAR_QX]; }
+        T& lidar_qy()     { return (*this)[ LIDAR_QY]; }
+        T& lidar_qz()     { return (*this)[ LIDAR_QZ]; }
 
 };
 
@@ -136,7 +143,14 @@ class LidarMeasurementModel : public Kalman::MeasurementModel<State<T>, LidarMea
     public:
         typedef Test1::State<T> S;
         typedef Test1::LidarMeasurement<T> M;
-        LidarMeasurementModel() {}
+        LidarMeasurementModel() {
+            this->P(0,0) = T(0.2);
+            this->P(1,1) = T(0.2);
+            this->P(2,2) = T(0.2);
+            this->P(3,3) = T(0.5);
+            this->P(4,4) = T(0.5);
+            this->P(5,5) = T(0.5);
+        }
 
         M h(const S& x) const {
             M measurement;

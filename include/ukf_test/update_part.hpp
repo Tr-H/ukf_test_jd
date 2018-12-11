@@ -87,7 +87,7 @@ class Filter_update_part {
         }
         
         void lidar_update_cb(const nav_msgs::Odometry& msg) {
-            if (!_has_init) {
+            if (!_has_init ) {
                 State x;
                 x.setZero();
                 x.x() = msg.pose.pose.position.x + lidar_to_imu[0];
@@ -103,6 +103,7 @@ class Filter_update_part {
                 x.qx() = lidar_euler(0)/T(M_PI)*T(180);
                 x.qy() = lidar_euler(1)/T(M_PI)*T(180);
                 x.qz() = lidar_euler(2)/T(M_PI)*T(180);
+                std::cout <<"x:" << x.x() << "," << x.y() << "," << x.z() <<std::endl;
                 init_process(x);
                 _has_init = true;
             } else {
@@ -150,7 +151,7 @@ class Filter_update_part {
         }
 
         void gps_update_cb(const sensor_msgs::NavSatFix& msg) {
-            if (!_has_init) {
+            if (!_has_init || !_predict_has_init) {
                 return;
             } else {
                 if (!_gps_has_init) {
@@ -182,13 +183,13 @@ class Filter_update_part {
                     gps_state.gps_y() = gps_xyz[1] + gps_to_imu[1];
                     gps_state.gps_z() = - gps_xyz[2] + gps_to_imu[2];
                     gps_state.gps_yaw() = - msg.position_covariance[0] + Center_yaw[2];
-                    update_process_gps(gps_state, msg.header.stamp);
+                    // update_process_gps(gps_state, msg.header.stamp);
                 }
             }
        }
 
         void odom_update_cb(const nav_msgs::Odometry& msg) {
-            if (!_has_init) {
+            if (!_has_init || !_predict_has_init) {
                 return;
             } else {
                 OdomMeasurement odom_state;
@@ -336,7 +337,7 @@ class Filter_update_part {
 
     #ifdef LOG_FLAG
         void start_logger() {
-            predict_logger.open("/home/lhc/work/estimator_ws/src/ukf_test/logger/real_predict.csv");
+            predict_logger.open("/home/ukf_ws/src/ukf_test/logger/real_predict.csv");
             if (!predict_logger.is_open()) {
                 ROS_WARN("cannot open the logger");
             } else {
@@ -362,7 +363,7 @@ class Filter_update_part {
                 // predict_logger << "bias_wz" << std::endl;
             }
 
-            update_logger.open("/home/lhc/work/estimator_ws/src/ukf_test/logger/real_update.csv");
+            update_logger.open("/home/ukf_ws/src/ukf_test/logger/real_update.csv");
             if (!update_logger.is_open()) {
                 ROS_WARN("cannot open the logger");
             } else {
@@ -377,6 +378,18 @@ class Filter_update_part {
                 update_logger << "theta" << ",";
                 update_logger << "psi" << std::endl;
             }
+
+            wgs_logger.open("/home/ukf_ws/src/ukf_test/logger/WGS.csv");
+            if (!wgs_logger.is_open()) {
+                ROS_WARN("cannot open the logger");
+            } else {
+                wgs_logger << "UTC Timestamp" << ","; 
+                wgs_logger << "Latitude" << ",";
+                wgs_logger << "Longitude" << ",";
+                wgs_logger << "Heading" << std::endl;
+            }
+
+
         }
 
         void record_predict(State& _p_d, ros::Time & _time_stamp) {
@@ -486,6 +499,7 @@ class Filter_update_part {
     #ifdef LOG_FLAG
         std::ofstream predict_logger;
         std::ofstream update_logger;
+        std::ofstream wgs_logger;
     #endif
 
 };

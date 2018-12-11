@@ -140,8 +140,32 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
         typedef Test1::State<T> S;
         typedef Test1::Control<T> C;
 
+        SystemModel() {
+            this->P(0,0) = T(0.5);
+            this->P(1,1) = T(0.5);
+            this->P(2,2) = T(0.5);
+            this->P(3,3) = T(1.0);
+            this->P(4,4) = T(1.0);
+            this->P(5,5) = T(1.0);
+            this->P(6,6) = T(1.0);
+            this->P(7,7) = T(2.0);
+            this->P(8,8) = T(2.0);
+            this->P(9,9) = T(2.0);
+            this->P(10,10) = T(2.0);
+            this->P(11,11) = T(2.0);
+        }
+        
+        mutable T ax_out;
+        mutable T ay_out;
+        mutable T az_out;
+        mutable T wx_out;
+        mutable T wy_out;
+        mutable T wz_out;
+
         S f(const S& x, const C& u) const {
             S x_;
+            // std::cout << "f: u: " << u.transpose() << std::endl;
+            // std::cout << "f: x: " << x.transpose() << std::endl;
             // T ax = u.ax() - x.bax();
             // T ay = u.ay() - x.bay();
             // T az = u.az() - x.baz();
@@ -171,6 +195,9 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
             x_.ax() = ga_x;
             x_.ay() = ga_y;
             x_.az() = ga_z;
+            ax_out = ga_x;
+            ay_out = ga_y;
+            az_out = ga_z;
             // std::cout << "ba "<< x.bax() <<","<< x.bay() <<","<< x.baz() << std::endl;
             // std::cout << "q  "<< a <<","<< b <<","<< c <<","<<d<< std::endl;
             // std::cout << "ga "<< ga_x <<","<< ga_y <<","<< ga_z << std::endl;
@@ -186,6 +213,10 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
             T wx_new = u.wx();
             T wy_new = u.wy();
             T wz_new = u.wz();
+
+            wx_out = wx_new;
+            wy_out = wy_new;
+            wz_out = wz_new;
 
             // Kalman::SquareMatrix<T, 3> R_new;
             Eigen::Matrix3d R_new;
@@ -290,9 +321,9 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
             x_.qx() = new_e(0)/T(M_PI)*T(180);//q_new(1);
             x_.qy() = new_e(1)/T(M_PI)*T(180);//q_new(1);
             x_.qz() = new_e(2)/T(M_PI)*T(180);//q_new(1);
-            x_.wx() = u.wx();
-            x_.wy() = u.wy();
-            x_.wz() = u.wz();
+            // x_.wx() = u.wx();
+            // x_.wy() = u.wy();
+            // x_.wz() = u.wz();
             // x_.qy() = q_new(2);
             // x_.qz() = q_new(3);
             // x_.bax() = x.bax();

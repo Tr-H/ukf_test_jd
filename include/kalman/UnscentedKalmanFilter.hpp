@@ -132,7 +132,10 @@ namespace Kalman {
             if(!computeSigmaPoints())
             {
                 // TODO: handle numerical error
-                assert(false);
+
+                P.setIdentity();
+                computeSigmaPoints();
+                // assert(false);
             }
             
             // Compute predicted state
@@ -187,14 +190,14 @@ namespace Kalman {
             // Get square root of covariance
             CovarianceSquareRoot<State> llt;
             // std::cout << P << std::endl;
-            for (int _i = 0; _i < P.rows() ;_i ++) {
-                if (P(_i, _i) < 0.0f) {
-                    //P(_i, _i) = 1.0f;
-                    std::cout << "wrong P reinit" << std::endl;
-                    P.setIdentity();
-                    break;
-                }
-            }
+            // for (int _i = 0; _i < P.rows() ;_i ++) {
+            //     if (P(_i, _i) < 0.0f) {
+            //         //P(_i, _i) = 1.0f;
+            //         std::cout << "wrong P reinit" << std::endl;
+            //         P.setIdentity();
+            //         break;
+            //     }
+            // }
 
             llt.compute(P);
             if(llt.info() != Eigen::Success)
@@ -232,7 +235,16 @@ namespace Kalman {
         {
             decltype(sigmaPoints) W = this->sigmaWeights_c.transpose().template replicate<Type::RowsAtCompileTime,1>();
             decltype(sigmaPoints) tmp = (sigmaPoints.colwise() - mean);
-            cov = tmp.cwiseProduct(W) * tmp.transpose() + noiseCov;
+            // cov = tmp.cwiseProduct(W) * tmp.transpose() + noiseCov;
+            Covariance<Type> temp_cov = tmp.cwiseProduct(W) * tmp.transpose() + noiseCov;
+
+            for (int _i = 0; _i < temp_cov.rows(); _i++) {
+                if (temp_cov(_i, _i) <= 0.0f) {
+                    std::cout << "get bad Covariance when cal Sigma" << std::endl;
+                    return false;
+                }
+            }
+            cov = temp_cov;
             
             return true;
         }
@@ -276,7 +288,16 @@ namespace Kalman {
         template<class Measurement>
         bool updateStateCovariance(const KalmanGain<Measurement>& K, const Covariance<Measurement>& P_yy)
         {
-            P -= K * P_yy * K.transpose();
+            // P -= K * P_yy * K.transpose();
+            auto temp_P = P - K * P_yy * K.transpose();
+
+            for (int _i = 0; _i < temp_P.rows(); _i++) {
+                if (temp_P(_i, _i) <= 0.0f) {
+                    std::cout << "get bad Covariance when update" << std::endl;
+                    return false;
+                }
+            }
+            P = temp_P;
             return true;
         }
     };

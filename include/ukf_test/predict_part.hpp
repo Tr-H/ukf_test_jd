@@ -21,8 +21,8 @@ LidarMeasurementModel, GpsMeasurement, GpsMeasurementModel, VioMeasurement, VioM
             int predict_rate;
             nh_predict_.param<std::string>("imu_topic", imu_topic_name, "/imu");
             nh_predict_.param<std::string>("frame_id", frameId, std::string("imu"));
-            nh_predict_.param<int>("imu_rate", predict_rate, 200);
-            imu_sub = nh_predict_.subscribe(imu_topic_name, 1, &Filter_predict_part::imu_update_cb, this);
+            nh_predict_.param<int>("imu_rate", predict_rate, 100);
+            imu_sub = nh_predict_.subscribe(imu_topic_name, 20, &Filter_predict_part::imu_update_cb, this);
             _delta_t_max = 1.0f/float(predict_rate);
             std::cout << "max dt = [" << _delta_t_max << "]" << std::endl;
         }
