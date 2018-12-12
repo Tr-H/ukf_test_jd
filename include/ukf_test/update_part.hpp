@@ -61,6 +61,7 @@ class Filter_update_part {
             nh_.param<std::string>("acctopic", _acctopic, "/vio_data_rigid1/acc");
             nh_.param<std::string>("atttopic", _atttopic, "/vio_data_rigid1/att");
             nh_.param<std::string>("wgstopic", wgs_topic, "/wgs");
+            nh_.param<float>("delta_yaw", delta_yaw, 60.0f);
             
             T _alpha = T(alpha);
             T _beta = T(beta);
@@ -233,7 +234,7 @@ class Filter_update_part {
                     // WGS_to_XYZ(gps_data, gps_XYZ);
                     Eigen::Vector3d gps_xyz;
                     // XYZ_to_xyz(gps_XYZ, Center, gps_xyz);
-                    WGS_to_xyz(gps_data, Center, gps_xyz, Center_yaw);
+                    WGS_to_xyz(gps_data, Center, gps_xyz, Center_yaw, delta_yaw);
                     std::cout << "gps_xyz:" << gps_xyz.transpose() << std::endl;
 
                     gps_path.header.stamp = msg.header.stamp;
@@ -417,7 +418,7 @@ class Filter_update_part {
             Eigen::Vector3d pos_XYZ, pos_wgs; 
             // xyz_to_XYZ(pos_xyz, Center, pos_XYZ);
             // XYZ_to_WGS(pos_XYZ, pos_wgs);
-            xyz_to_WGS(pos_xyz, Center, pos_wgs, Center_yaw);
+            xyz_to_WGS(pos_xyz, Center, pos_wgs, Center_yaw, delta_yaw);
             WGS_84.header.stamp = _timestamp;
             WGS_84.latitude = pos_wgs[0];
             WGS_84.longitude = pos_wgs[1];
@@ -495,7 +496,7 @@ class Filter_update_part {
                 _pos[0] = _p_d.x();
                 _pos[1] = _p_d.y();
                 _pos[2] = 0;
-                xyz_to_WGS(_pos, Center, final_wgs, Center_yaw);
+                xyz_to_WGS(_pos, Center, final_wgs, Center_yaw, delta_yaw);
                 T pos_yaw, pos_yaw_;
                 pos_yaw = - _p_d.qz() + Center_yaw[2]; 
                 pos_yaw_ = constrain_yaw(pos_yaw);
@@ -607,6 +608,7 @@ class Filter_update_part {
         Eigen::Vector3d Start_in_earth;
         Eigen::Vector3d Center;
         Eigen::Vector3d Center_yaw;
+        T delta_yaw;
         State _x_ukf;
         SystemModel _sys;
         VioModel _vm;

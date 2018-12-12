@@ -44,7 +44,7 @@ double constrain_yaw(double yaw) {
 	return yaw;
 }
 
-void WGS_to_xyz(const Eigen::Vector3d &wgs, const Eigen::Vector3d &Center, Eigen::Vector3d &xyz_imu, const Eigen::Vector3d &Center_yaw) {
+void WGS_to_xyz(const Eigen::Vector3d &wgs, const Eigen::Vector3d &Center, Eigen::Vector3d &xyz_imu, const Eigen::Vector3d &Center_yaw, const float& _delta_yaw) {
 	Eigen::Vector3d xyz;
     double a = 6371000; //meters (m)
     double lat_rad = wgs[0] / 180 * M_PI;
@@ -72,16 +72,16 @@ void WGS_to_xyz(const Eigen::Vector3d &wgs, const Eigen::Vector3d &Center, Eigen
 	xyz[2] = 0;
 
 	Eigen::Vector3d start_to_ned_euler;
-	start_to_ned_euler[2] = (Center_yaw[2] -58) / 180 * M_PI;
+	start_to_ned_euler[2] = (Center_yaw[2] -_delta_yaw) / 180 * M_PI;
 	Eigen::Matrix3d start_to_ned_R;
 	get_dcm_from_euler(start_to_ned_R, start_to_ned_euler);
 	xyz_imu = start_to_ned_R.transpose() * xyz;
 
 }
 
-void xyz_to_WGS(const Eigen::Vector3d &xyz_imu, const Eigen::Vector3d &Center, Eigen::Vector3d &wgs, const Eigen::Vector3d &Center_yaw) {
+void xyz_to_WGS(const Eigen::Vector3d &xyz_imu, const Eigen::Vector3d &Center, Eigen::Vector3d &wgs, const Eigen::Vector3d &Center_yaw, const float& _delta_yaw) {
 	Eigen::Vector3d start_to_ned_euler;
-	start_to_ned_euler[2] = (Center_yaw[2] -58) / 180 * M_PI;
+	start_to_ned_euler[2] = (Center_yaw[2] -_delta_yaw) / 180 * M_PI;
 	Eigen::Matrix3d start_to_ned_R;
 	get_dcm_from_euler(start_to_ned_R, start_to_ned_euler);
 	Eigen::Vector3d xyz;
