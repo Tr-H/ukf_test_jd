@@ -118,6 +118,11 @@ namespace Kalman {
             return predict( s, u );
         }
         
+        // template<class Control, template<class> class CovarianceBase>
+        // const State& lu_get_status()
+        // {
+        //     return this->getState();
+        // }
         /**
          * @brief Perform filter prediction step using control input \f$u\f$ and corresponding system model
          *

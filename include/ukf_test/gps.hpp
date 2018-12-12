@@ -2,7 +2,8 @@
 #define GPS_HPP_
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-#include <math.h>
+#include <cmath>
+#include "geometry_math_type.h"
 
 // void WGS_to_XYZ(Eigen::Vector3d &wgs, Eigen::Vector3d &XYZ) {
 //     double a = 6378137;//a为椭球的长半轴:a=6378.137km
@@ -31,7 +32,19 @@ double constrain(double value, double min, double max) {
     return value;
 }
 
-void WGS_to_xyz(Eigen::Vector3d &wgs, Eigen::Vector3d &Center, Eigen::Vector3d &xyz_imu) {
+double constrain_yaw(double yaw) {
+	while (yaw > 180) {
+		yaw -= 360;
+	}
+
+	while (yaw < -180) {
+		yaw += 360;
+	}
+
+	return yaw;
+}
+
+void WGS_to_xyz(const Eigen::Vector3d &wgs, const Eigen::Vector3d &Center, Eigen::Vector3d &xyz_imu, const Eigen::Vector3d &Center_yaw) {
 	Eigen::Vector3d xyz;
     double a = 6371000; //meters (m)
     double lat_rad = wgs[0] / 180 * M_PI;
@@ -53,18 +66,27 @@ void WGS_to_xyz(Eigen::Vector3d &wgs, Eigen::Vector3d &Center, Eigen::Vector3d &
 		k = (c / sin(c));
 	}
 
+	// NED
 	xyz[0] = k * (cos(Center_lat_rad) * sin_lat - sin(Center_lat_rad) * cos_lat * cos_d_lon) * a;
 	xyz[1] = k * cos_lat * sin(lon_rad - Center_lon_rad) * a;
 	xyz[2] = 0;
-	xyz_imu[0] = - xyz[1];
-	xyz_imu[1] = xyz[0];
+
+	Eigen::Vector3d start_to_ned_euler;
+	start_to_ned_euler[2] = (Center_yaw[2] -58) / 180 * M_PI;
+	Eigen::Matrix3d start_to_ned_R;
+	get_dcm_from_euler(start_to_ned_R, start_to_ned_euler);
+	xyz_imu = start_to_ned_R.transpose() * xyz;
 
 }
 
-void xyz_to_WGS(Eigen::Vector3d &xyz_imu, Eigen::Vector3d &Center, Eigen::Vector3d &wgs) {
+void xyz_to_WGS(const Eigen::Vector3d &xyz_imu, const Eigen::Vector3d &Center, Eigen::Vector3d &wgs, const Eigen::Vector3d &Center_yaw) {
+	Eigen::Vector3d start_to_ned_euler;
+	start_to_ned_euler[2] = (Center_yaw[2] -58) / 180 * M_PI;
+	Eigen::Matrix3d start_to_ned_R;
+	get_dcm_from_euler(start_to_ned_R, start_to_ned_euler);
 	Eigen::Vector3d xyz;
-	xyz[0] = xyz_imu[1];
-	xyz[1] = - xyz_imu[0];
+	xyz = start_to_ned_R * xyz_imu;
+	// NED
     double a = 6371000; //meters (m)
     double x_rad = xyz[0] / a;
     double y_rad = xyz[1] / a;

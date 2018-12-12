@@ -261,6 +261,7 @@ class SystemModel : public Kalman::SystemModel<State<T>, Control<T>, CovarianceB
             Eigen::Vector3d new_e;
             
             get_euler_from_R(new_e, R_new);
+            new_e(2) = x.qz()/T(180)*T(M_PI) + u.wz()*u.dt();
 
             // Kalman::Vector<T, 4> q_new;
             // T _t = R_new.trace();

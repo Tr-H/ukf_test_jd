@@ -18,7 +18,7 @@
 #include <fstream>
 // #include <time.h>
 
-typedef float T;
+typedef double T;
 
 typedef Test1::State<T> State;
 typedef Test1::Control<T> Control;

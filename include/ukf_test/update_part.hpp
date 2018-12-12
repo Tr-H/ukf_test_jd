@@ -7,6 +7,7 @@
 #include "gps.hpp"
 
 #include "nav_msgs/Odometry.h"
+#include "nav_msgs/Path.h"
 #include "sensor_msgs/NavSatFix.h"
 
 #include <kalman/UnscentedKalmanFilter.hpp>
@@ -79,6 +80,7 @@ class Filter_update_part {
             _rigid_acc_pub = nh_.advertise<geometry_msgs::Vector3Stamped>(_acctopic, 2);
             _rigid_att_pub = nh_.advertise<geometry_msgs::PoseStamped>(_atttopic, 2);
             _WGS_84_pub = nh_.advertise<sensor_msgs::NavSatFix>(wgs_topic, 2);
+            _gps_start_pub = nh_.advertise<nav_msgs::Path>("/gps_path", 10);
             
     #ifdef LOG_FLAG
             start_logger();
@@ -91,23 +93,60 @@ class Filter_update_part {
         }
         
         void lidar_update_cb(const nav_msgs::Odometry& msg) {
+
+            pthread_mutex_lock(&_ukf_core_mutex);
+            State _temp_x = _ukf_ptr->getState();
+            pthread_mutex_unlock(&_ukf_core_mutex);
+
+                Eigen::Quaterniond temp_lidar_q;
+                temp_lidar_q.w() = msg.pose.pose.orientation.w;
+                temp_lidar_q.x() = msg.pose.pose.orientation.x;
+                temp_lidar_q.y() = msg.pose.pose.orientation.z;
+                temp_lidar_q.z() = - msg.pose.pose.orientation.y;
+                Eigen::Vector3d lidar_euler;
+                get_euler_from_q(lidar_euler, temp_lidar_q);
+                T temp_qx = lidar_euler(0)/T(M_PI)*T(180);
+                T temp_qy = lidar_euler(1)/T(M_PI)*T(180);
+                T temp_qz = lidar_euler(2)/T(M_PI)*T(180);
+
+            T temp_yaw = _temp_x.qz();
+            T temp_yaw1 = constrain_yaw(temp_yaw);
+            T _delta = fabsf(temp_qz - temp_yaw1);
+            // std::cout << "before: temp_qz:" << temp_qz << std::endl;
+            // std::cout << "before: yaw    :" << temp_yaw << std::endl;
+            // std::cout << "delta          :" << _delta << std::endl;
+            if (_delta <= T(180)) {
+                if (temp_qz >= temp_yaw1) {
+                    temp_qz = temp_yaw + _delta;
+                } else {
+                    temp_qz = temp_yaw - _delta;
+                }
+            } else {
+                _delta = T(360) - _delta;
+                if (temp_qz < temp_yaw1) {
+                    temp_qz = temp_yaw + _delta;
+                } else {
+                    temp_qz = temp_yaw - _delta;
+                }
+            }
+            // std::cout << "after: temp_qz:" << temp_qz << std::endl;
+
             if (!_has_init ) {
                 State x;
                 x.setZero();
                 x.x() = msg.pose.pose.position.x + lidar_to_imu[0];
                 x.y() = msg.pose.pose.position.z + lidar_to_imu[1];
                 x.z() = - msg.pose.pose.position.y + lidar_to_imu[2];
-                Eigen::Quaterniond lidar_q;
-                lidar_q.w() = msg.pose.pose.orientation.w;
-                lidar_q.x() = msg.pose.pose.orientation.x;
-                lidar_q.y() = msg.pose.pose.orientation.z;
-                lidar_q.z() = - msg.pose.pose.orientation.y;
-                Eigen::Vector3d lidar_euler;
-                get_euler_from_q(lidar_euler, lidar_q);
-                x.qx() = lidar_euler(0)/T(M_PI)*T(180);
-                x.qy() = lidar_euler(1)/T(M_PI)*T(180);
-                x.qz() = lidar_euler(2)/T(M_PI)*T(180);
-                std::cout <<"x:" << x.x() << "," << x.y() << "," << x.z() <<std::endl;
+                // Eigen::Quaterniond lidar_q;
+                // lidar_q.w() = msg.pose.pose.orientation.w;
+                // lidar_q.x() = msg.pose.pose.orientation.x;
+                // lidar_q.y() = msg.pose.pose.orientation.z;
+                // lidar_q.z() = - msg.pose.pose.orientation.y;
+                // Eigen::Vector3d lidar_euler;
+                // get_euler_from_q(lidar_euler, lidar_q);
+                x.qx() = temp_qx;
+                x.qy() = temp_qy;
+                x.qz() = temp_qz;
                 init_process(x);
                 _has_init = true;
             } else {
@@ -118,16 +157,16 @@ class Filter_update_part {
                 Start_in_earth[0] = lidar_state.lidar_x();
                 Start_in_earth[1] = lidar_state.lidar_y();
                 Start_in_earth[2] = lidar_state.lidar_z();
-                Eigen::Quaterniond lidar_q;
-                lidar_q.w() = msg.pose.pose.orientation.w;
-                lidar_q.x() = msg.pose.pose.orientation.x;
-                lidar_q.y() = msg.pose.pose.orientation.z;
-                lidar_q.z() = - msg.pose.pose.orientation.y;
-                Eigen::Vector3d lidar_euler;
-                get_euler_from_q(lidar_euler, lidar_q);
-                lidar_state.lidar_qx() = lidar_euler(0)/T(M_PI)*T(180);
-                lidar_state.lidar_qy() = lidar_euler(1)/T(M_PI)*T(180);
-                lidar_state.lidar_qz() = lidar_euler(2)/T(M_PI)*T(180);
+                // Eigen::Quaterniond lidar_q;
+                // lidar_q.w() = msg.pose.pose.orientation.w;
+                // lidar_q.x() = msg.pose.pose.orientation.x;
+                // lidar_q.y() = msg.pose.pose.orientation.z;
+                // lidar_q.z() = - msg.pose.pose.orientation.y;
+                // Eigen::Vector3d lidar_euler;
+                // get_euler_from_q(lidar_euler, lidar_q);
+                lidar_state.lidar_qx() = temp_qx;
+                lidar_state.lidar_qy() = temp_qy;
+                lidar_state.lidar_qz() = temp_qz;
                 if (!_predict_has_init) {
                     State x;
                     x.setZero();
@@ -168,17 +207,21 @@ class Filter_update_part {
                     Eigen::Vector3d Start_wgs;
                     Start_wgs[0] = msg.latitude;
                     Start_wgs[1] = msg.longitude;
-                    Start_wgs[2] = msg.altitude;
-                    Eigen::Vector3d Start_to_Origin;
-                    Start_to_Origin = - Start_in_earth;
-                    // Eigen::Vector3d Center_XYZ;
-                    // xyz_to_XYZ(Start_to_Origin, Start_wgs, Center_XYZ);
-                    // XYZ_to_WGS(Center_XYZ, Center);
+                    Start_wgs[2] = 0; //msg.altitude;
+                    Center_yaw << 0, 0, msg.position_covariance[0];
 
-                    xyz_to_WGS(Start_to_Origin, Start_wgs, Center);
-                    std::cout << "Start_wgs:" << Start_wgs.transpose() << std::endl;
-                    std::cout << "Origin_wgs:" << Center.transpose() << std::endl;
-                    Center_yaw[2] = msg.position_covariance[0];
+                    // Eigen::Vector3d Start_to_Origin;
+                    // Start_to_Origin = - Start_in_earth;
+                    // // Eigen::Vector3d Center_XYZ;
+                    // // xyz_to_XYZ(Start_to_Origin, Start_wgs, Center_XYZ);
+                    // // XYZ_to_WGS(Center_XYZ, Center);
+
+                    // xyz_to_WGS(Start_to_Origin, Start_wgs, Center, Center_yaw);
+                    // std::cout << "Start_wgs:" << Start_wgs.transpose() << std::endl;
+                    // std::cout << "Origin_wgs:" << Center.transpose() << std::endl;
+
+                    Center = Start_wgs;
+
                     _gps_has_init = true;
                 } else {
                     Eigen::Vector3d gps_data;
@@ -190,12 +233,23 @@ class Filter_update_part {
                     // WGS_to_XYZ(gps_data, gps_XYZ);
                     Eigen::Vector3d gps_xyz;
                     // XYZ_to_xyz(gps_XYZ, Center, gps_xyz);
-                    WGS_to_xyz(gps_data, Center, gps_xyz);
+                    WGS_to_xyz(gps_data, Center, gps_xyz, Center_yaw);
+                    std::cout << "gps_xyz:" << gps_xyz.transpose() << std::endl;
+
+                    gps_path.header.stamp = msg.header.stamp;
+                    gps_path.header.frame_id = "camera_init";
+                    geometry_msgs::PoseStamped _gps_pos;
+                    _gps_pos.pose.position.x = gps_xyz[0];
+                    _gps_pos.pose.position.y = -gps_xyz[2];
+                    _gps_pos.pose.position.z = gps_xyz[1];
+                    gps_path.poses.push_back(_gps_pos);
+                    _gps_start_pub.publish(gps_path);
+
+                    std::cout << "center_yaw:" << Center_yaw << std::endl;
                     GpsMeasurement gps_state;
                     gps_state.gps_x() = gps_xyz[0] + gps_to_imu[0];
                     gps_state.gps_y() = gps_xyz[1] + gps_to_imu[1];
                     // gps_state.gps_z() = gps_xyz[2] + gps_to_imu[2];
-                    // std::cout << "gps_xyz:" << gps_xyz.transpose() << std::endl;
                     // Eigen::Vector3d gps_test;
                     // gps_test[0] = gps_xyz[0] + gps_to_imu[0];
                     // gps_test[1] = gps_xyz[1] + gps_to_imu[1];
@@ -316,10 +370,21 @@ class Filter_update_part {
             geometry_msgs::PoseStamped _att_msg;
             sensor_msgs::NavSatFix WGS_84;
 
+            // Eigen::Vector3d pos_now, pos_ned, euler_to_ned;
+            // Eigen::Matrix3d dcm_to_ned;
+            // pos_now << now_state.x(), now_state.y(), now_state.z();
+            // euler_to_ned << 0, 0, Center_yaw;
+            // get_dcm_from_euler(dcm_to_ned, euler_to_ned);
+            // pos_ned = dcm_to_ned * pos_now;
+
             _pos_msg.header.stamp = _timestamp;
             _pos_msg.pose.position.x = now_state.x();
             _pos_msg.pose.position.y = now_state.y();
             _pos_msg.pose.position.z = now_state.z();
+            // _pos_msg.pose.position.x = pos_ned[0];
+            // _pos_msg.pose.position.y = pos_ned[1];
+            // _pos_msg.pose.position.z = pos_ned[2];
+
 
             _vel_msg.header.stamp = _timestamp;
             _vel_msg.vector.x = now_state.vx();
@@ -352,7 +417,7 @@ class Filter_update_part {
             Eigen::Vector3d pos_XYZ, pos_wgs; 
             // xyz_to_XYZ(pos_xyz, Center, pos_XYZ);
             // XYZ_to_WGS(pos_XYZ, pos_wgs);
-            xyz_to_WGS(pos_xyz, Center, pos_wgs);
+            xyz_to_WGS(pos_xyz, Center, pos_wgs, Center_yaw);
             WGS_84.header.stamp = _timestamp;
             WGS_84.latitude = pos_wgs[0];
             WGS_84.longitude = pos_wgs[1];
@@ -430,15 +495,16 @@ class Filter_update_part {
                 _pos[0] = _p_d.x();
                 _pos[1] = _p_d.y();
                 _pos[2] = 0;
-                xyz_to_WGS(_pos, Center, final_wgs);
-                T pos_yaw;
+                xyz_to_WGS(_pos, Center, final_wgs, Center_yaw);
+                T pos_yaw, pos_yaw_;
                 pos_yaw = - _p_d.qz() + Center_yaw[2]; 
+                pos_yaw_ = constrain_yaw(pos_yaw);
 
                 if (wgs_logger.is_open()) {
                     wgs_logger << _time_stamp << ",";
-                    wgs_logger << final_wgs[0] << ",";
-                    wgs_logger << final_wgs[1] << ",";
-                    wgs_logger << pos_yaw << std::endl;
+                    wgs_logger << std::setprecision(15) << final_wgs[0] << ",";
+                    wgs_logger << std::setprecision(15) << final_wgs[1] << ",";
+                    wgs_logger << std::setprecision(15) << pos_yaw_ << std::endl;
                 }
             }
         }
@@ -536,6 +602,8 @@ class Filter_update_part {
         ros::Publisher _rigid_acc_pub;
         ros::Publisher _rigid_att_pub;
         ros::Publisher _WGS_84_pub;
+        ros::Publisher _gps_start_pub;
+        nav_msgs::Path gps_path;
         Eigen::Vector3d Start_in_earth;
         Eigen::Vector3d Center;
         Eigen::Vector3d Center_yaw;
