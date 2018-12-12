@@ -1,5 +1,5 @@
 #define _USE_MATH_DEFINES
-// #define LOG_FLAG
+#define LOG_FLAG
 #include <cmath>
 
 

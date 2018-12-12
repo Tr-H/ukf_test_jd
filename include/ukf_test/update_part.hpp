@@ -195,7 +195,7 @@ class Filter_update_part {
                     gps_state.gps_x() = gps_xyz[0] + gps_to_imu[0];
                     gps_state.gps_y() = gps_xyz[1] + gps_to_imu[1];
                     // gps_state.gps_z() = gps_xyz[2] + gps_to_imu[2];
-                    std::cout << "gps_xyz:" << gps_xyz.transpose() << std::endl;
+                    // std::cout << "gps_xyz:" << gps_xyz.transpose() << std::endl;
                     // Eigen::Vector3d gps_test;
                     // gps_test[0] = gps_xyz[0] + gps_to_imu[0];
                     // gps_test[1] = gps_xyz[1] + gps_to_imu[1];
@@ -344,11 +344,11 @@ class Filter_update_part {
             _att_msg.pose.orientation.z = _quat_att.z();
 
             Eigen::Vector3d pos_xyz;
-            pos_xyz[0] = - now_state.x();
+            pos_xyz[0] = now_state.x();
             pos_xyz[1] = now_state.y();
-            pos_xyz[2] = - now_state.z();
+            pos_xyz[2] = now_state.z();
             T pos_yaw;
-            pos_yaw = - now_state.qz() * T(M_PI) / T(180) + Center_yaw[2]; 
+            pos_yaw = - now_state.qz() + Center_yaw[2]; 
             Eigen::Vector3d pos_XYZ, pos_wgs; 
             // xyz_to_XYZ(pos_xyz, Center, pos_XYZ);
             // XYZ_to_WGS(pos_XYZ, pos_wgs);
@@ -356,7 +356,7 @@ class Filter_update_part {
             WGS_84.header.stamp = _timestamp;
             WGS_84.latitude = pos_wgs[0];
             WGS_84.longitude = pos_wgs[1];
-            WGS_84.altitude = pos_wgs[2];
+            // WGS_84.altitude = pos_wgs[2];
             WGS_84.position_covariance[0] = pos_yaw;
 
             _rigid_pos_pub.publish(_pos_msg);
@@ -368,7 +368,7 @@ class Filter_update_part {
 
     #ifdef LOG_FLAG
         void start_logger() {
-            predict_logger.open("/home/ukf_ws/src/ukf_test/logger/real_predict.csv");
+            predict_logger.open("/home/htr/ukf_ws/src/ukf_test/logger/real_predict.csv");
             if (!predict_logger.is_open()) {
                 ROS_WARN("cannot open the logger");
             } else {
@@ -394,7 +394,7 @@ class Filter_update_part {
                 // predict_logger << "bias_wz" << std::endl;
             }
 
-            update_logger.open("/home/ukf_ws/src/ukf_test/logger/real_update.csv");
+            update_logger.open("/home/htr/ukf_ws/src/ukf_test/logger/real_update.csv");
             if (!update_logger.is_open()) {
                 ROS_WARN("cannot open the logger");
             } else {
@@ -410,7 +410,7 @@ class Filter_update_part {
                 update_logger << "psi" << std::endl;
             }
 
-            wgs_logger.open("/home/ukf_ws/src/ukf_test/logger/WGS.csv");
+            wgs_logger.open("/home/htr/ukf_ws/src/ukf_test/logger/WGS.csv");
             if (!wgs_logger.is_open()) {
                 ROS_WARN("cannot open the logger");
             } else {
@@ -424,20 +424,22 @@ class Filter_update_part {
         }
 
         void record_WGS(State& _p_d, ros::Time& _time_stamp) {
-            Eigen::Vector3d final_wgs;
-            Eigen::Vector3d _pos;
-            _pos[0] = _p_d.x();
-            _pos[1] = _p_d.y();
-            _pos[2] = 0;
-            xyz_to_WGS(_pos, Center, final_wgs);
-            T pos_yaw;
-            pos_yaw = - _p_d.qz() + Center_yaw[2]; 
+            if (_gps_has_init) {
+                Eigen::Vector3d final_wgs;
+                Eigen::Vector3d _pos;
+                _pos[0] = _p_d.x();
+                _pos[1] = _p_d.y();
+                _pos[2] = 0;
+                xyz_to_WGS(_pos, Center, final_wgs);
+                T pos_yaw;
+                pos_yaw = - _p_d.qz() + Center_yaw[2]; 
 
-            if (wgs_logger.is_open()) {
-                wgs_logger << _time_stamp << ",";
-                wgs_logger << final_wgs[0] << ",";
-                wgs_logger << final_wgs[1] << ",";
-                wgs_logger << pos_yaw << std::endl;
+                if (wgs_logger.is_open()) {
+                    wgs_logger << _time_stamp << ",";
+                    wgs_logger << final_wgs[0] << ",";
+                    wgs_logger << final_wgs[1] << ",";
+                    wgs_logger << pos_yaw << std::endl;
+                }
             }
         }
 
