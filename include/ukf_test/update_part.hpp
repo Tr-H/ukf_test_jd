@@ -82,6 +82,7 @@ class Filter_update_part {
             _rigid_att_pub = nh_.advertise<geometry_msgs::PoseStamped>(_atttopic, 2);
             _WGS_84_pub = nh_.advertise<sensor_msgs::NavSatFix>(wgs_topic, 2);
             _gps_start_pub = nh_.advertise<nav_msgs::Path>("/gps_path", 10);
+            _state_start_pub = nh_.advertise<nav_msgs::Path>("/state_path", 10);
             
     #ifdef LOG_FLAG
             start_logger();
@@ -259,7 +260,9 @@ class Filter_update_part {
                     
                     gps_state.gps_yaw() = - msg.position_covariance[0] + Center_yaw[2];
                     if (_update_has_ready) {
-                        //update_process_gps(gps_state, msg.header.stamp);
+                        if (msg.status.status == 4) {
+                            update_process_gps(gps_state, msg.header.stamp);
+                        }
                         _update_has_ready = false;
                     }
                 }
@@ -370,6 +373,16 @@ class Filter_update_part {
             geometry_msgs::Vector3Stamped _acc_msg;
             geometry_msgs::PoseStamped _att_msg;
             sensor_msgs::NavSatFix WGS_84;
+            geometry_msgs::PoseStamped _state_pos;
+            
+            state_path.header.stamp = _timestamp;
+            state_path.header.frame_id = "camera_init";
+
+            _state_pos.pose.position.x = now_state.x();
+            _state_pos.pose.position.y = -now_state.z();
+            _state_pos.pose.position.z = now_state.y();
+            state_path.poses.push_back(_state_pos);
+            _state_start_pub.publish(state_path);
 
             // Eigen::Vector3d pos_now, pos_ned, euler_to_ned;
             // Eigen::Matrix3d dcm_to_ned;
@@ -557,7 +570,7 @@ class Filter_update_part {
                 update_logger << _time_stamp << ",";
                 update_logger << _m_d.gps_x() << ",";
                 update_logger << _m_d.gps_y() << ",";
-                update_logger << _m_d.gps_z() << ",";
+                update_logger << zero << ",";
                 update_logger << zero << ",";
                 update_logger << zero << ",";
                 update_logger << zero << ",";
@@ -604,7 +617,9 @@ class Filter_update_part {
         ros::Publisher _rigid_att_pub;
         ros::Publisher _WGS_84_pub;
         ros::Publisher _gps_start_pub;
+        ros::Publisher _state_start_pub;
         nav_msgs::Path gps_path;
+        nav_msgs::Path state_path;
         Eigen::Vector3d Start_in_earth;
         Eigen::Vector3d Center;
         Eigen::Vector3d Center_yaw;

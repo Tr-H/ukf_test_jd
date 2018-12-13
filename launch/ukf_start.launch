@@ -18,7 +18,8 @@
         <param name="update_part/alpha"  value="1" />
         <param name="update_part/beta"  value="2.0"/>
         <param name="update_part/kappa"  value="0"/>
-        <param name="update_part/delta_yaw"  value="69"/>
+        <!-- <param name="update_part/delta_yaw"  value="73.5"/> -->
+        <param name="update_part/delta_yaw"  value="74"/>
         <param name="update_part/verbose"  value="$(arg verbose)"/>
     </node>
 </group>
