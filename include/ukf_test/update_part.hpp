@@ -34,6 +34,7 @@ class Filter_update_part {
             _predict_has_init = false;
             _gps_has_init = false;
             _update_has_ready = false;
+            _loopClosure_done = false;
             // _lidar_update_has_ready = false;
             // _gps_update_has_ready = false;
             // _odom_update_has_ready = false;
@@ -169,6 +170,11 @@ class Filter_update_part {
                 lidar_state.lidar_qx() = temp_qx;
                 lidar_state.lidar_qy() = temp_qy;
                 lidar_state.lidar_qz() = temp_qz;
+                if (msg.pose.covariance[0] == 1) {
+                    _loopClosure_done = true;
+                } else {
+                    _loopClosure_done = false;
+                }
                 if (!_predict_has_init) {
                     State x;
                     x.setZero();
@@ -191,7 +197,9 @@ class Filter_update_part {
                     init_process(x);
                 } else {
                     if (_update_has_ready) {
-                        update_process_lidar(lidar_state, msg.header.stamp);
+                        if (!_loopClosure_done) {
+                            update_process_lidar(lidar_state, msg.header.stamp);
+                        }
                         _update_has_ready = false;
                     }
                 }
@@ -260,8 +268,8 @@ class Filter_update_part {
                     
                     gps_state.gps_yaw() = - msg.position_covariance[0] + Center_yaw[2];
                     if (_update_has_ready) {
-                        if (msg.status.status == 4) {
-                            // update_process_gps(gps_state, msg.header.stamp);
+                        if (msg.status.status == 4 && _loopClosure_done) {
+                            update_process_gps(gps_state, msg.header.stamp);
                         }
                         _update_has_ready = false;
                     }
@@ -306,7 +314,7 @@ class Filter_update_part {
                 std::cout << "x(ukf): [" << _x_ukf << "]" << std::endl;
             }
     #ifdef LOG_FLAG
-            // record_WGS(_x_ukf, _time_stamp);
+            record_WGS(_x_ukf, _time_stamp);
             record_update_lidar(lidar_state, _time_stamp);
     #endif
         }
@@ -320,7 +328,7 @@ class Filter_update_part {
                 std::cout << "x(ukf): [" << _x_ukf << "]" << std::endl;
             }
     #ifdef LOG_FLAG
-            record_WGS(_x_ukf, _time_stamp);
+            // record_WGS(_x_ukf, _time_stamp);
             record_update_gps(gps_state, _time_stamp);
     #endif
         }
@@ -605,6 +613,7 @@ class Filter_update_part {
         bool _predict_has_init;
         bool _gps_has_init;
         bool _update_has_ready;
+        bool _loopClosure_done;
         // bool _lidar_update_has_ready;
         // bool _gps_update_has_ready;
         // bool _odom_update_has_ready;
