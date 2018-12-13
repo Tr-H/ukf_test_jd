@@ -34,9 +34,9 @@ class GpsMeasurementModel : public Kalman::MeasurementModel<State<T>, GpsMeasure
         typedef Test1::State<T> S;
         typedef Test1::GpsMeasurement<T> M;
         GpsMeasurementModel() {
-            this->P(0,0) = T(0.5);
-            this->P(1,1) = T(0.5);
-            this->P(2,2) = T(0.5);
+            this->P(0,0) = T(0.05);
+            this->P(1,1) = T(0.05);
+            this->P(2,2) = T(0.05);
         }
 
         M h(const S& x) const {
@@ -84,9 +84,9 @@ class OdomMeasurementModel : public Kalman::MeasurementModel<State<T>, OdomMeasu
         typedef Test1::State<T> S;
         typedef Test1::OdomMeasurement<T> M;
         OdomMeasurementModel() {
-            this->P(0,0) = T(0.1);
-            this->P(1,1) = T(0.1);
-            this->P(2,2) = T(0.1);
+            this->P(0,0) = T(0.01);
+            this->P(1,1) = T(0.01);
+            this->P(2,2) = T(0.01);
         }
 
         M h(const S& x) const {
@@ -148,12 +148,12 @@ class LidarMeasurementModel : public Kalman::MeasurementModel<State<T>, LidarMea
         typedef Test1::State<T> S;
         typedef Test1::LidarMeasurement<T> M;
         LidarMeasurementModel() {
-            this->P(0,0) = T(0.1);
-            this->P(1,1) = T(0.1);
-            this->P(2,2) = T(0.1);
-            this->P(3,3) = T(0.5);
-            this->P(4,4) = T(0.5);
-            this->P(5,5) = T(0.5);
+            this->P(0,0) = T(0.01);
+            this->P(1,1) = T(0.01);
+            this->P(2,2) = T(0.01);
+            this->P(3,3) = T(0.1);
+            this->P(4,4) = T(0.1);
+            this->P(5,5) = T(0.1);
         }
 
         M h(const S& x) const {

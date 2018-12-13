@@ -212,8 +212,9 @@ class Filter_update_part {
                     Start_wgs[2] = 0; //msg.altitude;
                     Center_yaw << 0, 0, msg.position_covariance[0];
 
-                    // Eigen::Vector3d Start_to_Origin;
-                    // Start_to_Origin = - Start_in_earth;
+                    Eigen::Vector3d Start_to_Origin;
+                    Start_to_Origin = - Start_in_earth;
+                    xyz_to_WGS(Start_to_Origin, Start_wgs, Center, Center_yaw, delta_yaw);
                     // // Eigen::Vector3d Center_XYZ;
                     // // xyz_to_XYZ(Start_to_Origin, Start_wgs, Center_XYZ);
                     // // XYZ_to_WGS(Center_XYZ, Center);
@@ -222,7 +223,7 @@ class Filter_update_part {
                     // std::cout << "Start_wgs:" << Start_wgs.transpose() << std::endl;
                     // std::cout << "Origin_wgs:" << Center.transpose() << std::endl;
 
-                    Center = Start_wgs;
+                    // Center = Start_wgs;
 
                     _gps_has_init = true;
                 } else {
@@ -236,7 +237,7 @@ class Filter_update_part {
                     Eigen::Vector3d gps_xyz;
                     // XYZ_to_xyz(gps_XYZ, Center, gps_xyz);
                     WGS_to_xyz(gps_data, Center, gps_xyz, Center_yaw, delta_yaw);
-                    std::cout << "gps_xyz:" << gps_xyz.transpose() << std::endl;
+                    // std::cout << "gps_xyz:" << gps_xyz.transpose() << std::endl;
 
                     gps_path.header.stamp = msg.header.stamp;
                     gps_path.header.frame_id = "camera_init";
@@ -247,7 +248,6 @@ class Filter_update_part {
                     gps_path.poses.push_back(_gps_pos);
                     _gps_start_pub.publish(gps_path);
 
-                    std::cout << "center_yaw:" << Center_yaw << std::endl;
                     GpsMeasurement gps_state;
                     gps_state.gps_x() = gps_xyz[0] + gps_to_imu[0];
                     gps_state.gps_y() = gps_xyz[1] + gps_to_imu[1];
@@ -261,7 +261,7 @@ class Filter_update_part {
                     gps_state.gps_yaw() = - msg.position_covariance[0] + Center_yaw[2];
                     if (_update_has_ready) {
                         if (msg.status.status == 4) {
-                            update_process_gps(gps_state, msg.header.stamp);
+                            // update_process_gps(gps_state, msg.header.stamp);
                         }
                         _update_has_ready = false;
                     }
@@ -306,7 +306,7 @@ class Filter_update_part {
                 std::cout << "x(ukf): [" << _x_ukf << "]" << std::endl;
             }
     #ifdef LOG_FLAG
-            // record_predict(_x_ukf, _time_stamp);
+            // record_WGS(_x_ukf, _time_stamp);
             record_update_lidar(lidar_state, _time_stamp);
     #endif
         }
@@ -320,7 +320,7 @@ class Filter_update_part {
                 std::cout << "x(ukf): [" << _x_ukf << "]" << std::endl;
             }
     #ifdef LOG_FLAG
-            // record_predict(_x_ukf, _time_stamp);
+            record_WGS(_x_ukf, _time_stamp);
             record_update_gps(gps_state, _time_stamp);
     #endif
         }
@@ -334,7 +334,7 @@ class Filter_update_part {
                 std::cout << "x(ukf): [" << _x_ukf << "]" << std::endl;
             }
     #ifdef LOG_FLAG
-            // record_predict(_x_ukf, _time_stamp);
+            // record_WGS(_x_ukf, _time_stamp);
             record_update_odom(odom_state, _time_stamp);
     #endif
         }
